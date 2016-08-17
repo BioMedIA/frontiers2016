@@ -1,0 +1,34 @@
+val subjectDir = Val[File]
+val subjectID  = Val[String]
+val resultFolder = Val[File]
+
+val dataDir = File("/mnt/fastmp/UKBiobank_transfer/data")
+
+// one option is to sample the 
+val csv = CSVSampling(workDirectory / "todo.csv") set (
+  columns += subjectID,
+  fileColumns += ("subjectDir", "/", subjectDir)
+  )
+
+val exploIDsTask = ExplorationTask (
+  // subjectDir in dataDir.files withName subjectID
+  csv
+)
+
+val cardiac = CARETask(workDirectory / "cardiac_biobank.tgz.bin",
+  "/homes/jpassera/workspace/wenjia_biobank/seg_biobank_kings.py 0 1 /mnt/fastmp/UKBiobank_transfer/data"
+  ) set (
+    (inputs, outputs) += subjectID,
+    inputFiles += (subjectDir, "/mnt/fastmp/UKBiobank_transfer/data/${subjectID}"),
+    outputFiles += ("/mnt/fastmp/UKBiobank_transfer/data/${subjectID}", resultFolder),
+    resources += (workDirectory / "3d_multi_atlas", "/mnt/fastmp/cardiac-3d_multi_atlas")
+  )
+
+
+val copyBack = CopyFileHook(resultFolder, dataDir + "/../processing_results/${subjectID}")
+
+val local = LocalEnvironment(4)
+val egi = EGIEnvironment("biomed")
+val condor = CondorEnvironment(user = "jpassera", host = "hornbeam.doc.ic.ac.uk", memory = 4000)
+
+exploIDsTask -< (cardiac on condor hook copyBack)
